@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+server.log
+nohup.out
+models/
+.pytest_cache/
