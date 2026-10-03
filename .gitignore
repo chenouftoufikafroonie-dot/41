@@ -1,7 +1,10 @@
-__pycache__/
-*.pyc
+node_modules
+.next
+dist
+build
+.turbo
+*.log
 .env
-server.log
-nohup.out
-models/
-.pytest_cache/
+*.db
+*.sqlite
+dev.db

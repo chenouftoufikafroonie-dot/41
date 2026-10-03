@@ -1,0 +1,572 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  companies   Company[]
+}
+
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  name           String?
+  passwordHash   String?
+  role           String       @default("PRESIDENT") // ADMIN, PRESIDENT, EXPERT_ACCOUNTANT, READ_ONLY
+  twoFactorAuth  Boolean      @default(false)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+}
+
+model Company {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name               String
+  siren              String
+  siret              String
+  apeCode            String
+  vatNumber          String
+  shareCapital       Float    @default(1000.0)
+  legalForm          String   @default("SASU")
+  address            String
+  city               String
+  postalCode         String
+  country            String   @default("France")
+  fiscalRegime       String   @default("IS") // IS / IR
+  vatRegime          String   @default("REAL_NORMAL") // REAL_NORMAL / REAL_SIMPLIFIE
+  fiscalYearEndMonth Int      @default(12) // December
+  bankIban           String?
+  bankBic            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  executives         Executive[]
+  shareholders       Shareholder[]
+  fiscalYears        FiscalYear[]
+  clients            Client[]
+  suppliers          Supplier[]
+  invoices           Invoice[]
+  quotes             Quote[]
+  creditNotes        CreditNote[]
+  expenses           Expense[]
+  bankAccounts       BankAccount[]
+  journals           Journal[]
+  accountingEntries AccountingEntry[]
+  taxDeadlines       TaxDeadline[]
+  payrolls           Payroll[]
+  dividends          Dividend[]
+  legalDocuments     LegalDocument[]
+  documents          Document[]
+  settings           Setting[]
+  assets             Asset[]
+  loans              Loan[]
+  contracts          Contract[]
+  vatDeclarations    VatDeclaration[]
+  corporateTaxes     CorporateTax[]
+}
+
+model FiscalYear {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year      Int
+  startDate DateTime
+  endDate   DateTime
+  isClosed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Executive {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  title     String   @default("Président")
+  email     String
+  phone     String?
+  startDate DateTime
+  endDate   DateTime?
+  isSalariedAssimilated Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shareholder {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  sharesCount Int
+  percentage  Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Client {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  siren         String?
+  vatNumber     String?
+  email         String
+  phone         String?
+  address       String
+  paymentTerms  Int      @default(30) // days
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  invoices      Invoice[]
+  quotes        Quote[]
+}
+
+model Supplier {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  siren         String?
+  vatNumber     String?
+  email         String?
+  address       String?
+  paymentTerms  Int      @default(30)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses      Expense[]
+}
+
+model Quote {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  number      String   @unique
+  date        DateTime
+  expiryDate  DateTime
+  amountHt    Float
+  amountVat   Float
+  amountTtc   Float
+  status      String   @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id])
+  number      String        @unique
+  date        DateTime
+  dueDate     DateTime
+  amountHt    Float
+  amountVat   Float
+  amountTtc   Float
+  status      String        @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE, CANCELLED
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  lines       InvoiceLine[]
+  payments    Payment[]
+  creditNotes CreditNote[]
+}
+
+model InvoiceLine {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unitPrice   Float
+  vatRate     Float    @default(20.0) // 20.0, 10.0, 5.5, 2.1, 0.0
+  amountHt    Float
+  amountVat   Float
+  amountTtc   Float
+}
+
+model CreditNote {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  number      String   @unique
+  date        DateTime
+  amountHt    Float
+  amountVat   Float
+  amountTtc   Float
+  reason      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount        Float
+  date          DateTime
+  paymentMethod String   @default("TRANSFER")
+  reference     String?
+  createdAt     DateTime @default(now())
+}
+
+model Expense {
+  id          String        @id @default(uuid())
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplierId  String?
+  supplier    Supplier?     @relation(fields: [supplierId], references: [id])
+  description String
+  category    String        // e.g., RESTAURANT, TRAVEL, SOFTWARE, SUPPLIES
+  date        DateTime
+  amountHt    Float
+  amountVat   Float
+  amountTtc   Float
+  vatRate     Float         @default(20.0)
+  status      String        @default("APPROVED") // DRAFT, SUBMITTED, APPROVED, REIMBURSED
+  isNoteDeFrais Boolean     @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  receipts    Receipt[]
+}
+
+model Receipt {
+  id        String   @id @default(uuid())
+  expenseId String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  ocrData   String?  // JSON stringified OCR extraction
+  createdAt DateTime @default(now())
+}
+
+model BankAccount {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String   @default("Compte Courant Principal")
+  bankName      String   @default("Qonto / Shine / SG")
+  iban          String
+  bic           String
+  balance       Float    @default(0.0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions  BankTransaction[]
+}
+
+model BankTransaction {
+  id            String            @id @default(uuid())
+  bankAccountId String
+  bankAccount   BankAccount       @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  date          DateTime
+  label         String
+  amount        Float             // Positive for credit, negative for debit
+  status        String            @default("UNMATCHED") // PENDING, MATCHED, UNMATCHED, EXCLUDED
+  category      String?
+  rawLine       String?
+  createdAt     DateTime          @default(now())
+
+  reconciliations Reconciliation[]
+}
+
+model Reconciliation {
+  id                String          @id @default(uuid())
+  bankTransactionId String
+  bankTransaction   BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+  accountingEntryId String
+  accountingEntry   AccountingEntry @relation(fields: [accountingEntryId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+}
+
+model Journal {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code      String   // VT (Ventes), HA (Achats), BQ (Banque), OD (Opérations Diverses), PA (Paie)
+  name      String
+  createdAt DateTime @default(now())
+
+  entries   AccountingEntry[]
+}
+
+model AccountingEntry {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalId   String
+  journal     Journal  @relation(fields: [journalId], references: [id])
+  date        DateTime
+  pieceRef    String   // Invoice # or Expense #
+  label       String
+  isLocked    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lines           AccountingLine[]
+  reconciliations Reconciliation[]
+}
+
+model AccountingLine {
+  id                String          @id @default(uuid())
+  accountingEntryId String
+  entry             AccountingEntry @relation(fields: [accountingEntryId], references: [id], onDelete: Cascade)
+  accountNumber     String          // PCG 6-digit code e.g. 706000, 411100, 445710
+  accountLabel      String
+  debit             Float           @default(0.0)
+  credit            Float           @default(0.0)
+  lettre            String?
+}
+
+model Ledger {
+  id            String   @id @default(uuid())
+  companyId     String
+  accountNumber String
+  accountLabel  String
+  totalDebit    Float
+  totalCredit   Float
+  balance       Float
+}
+
+model TrialBalance {
+  id            String   @id @default(uuid())
+  companyId     String
+  accountNumber String
+  accountLabel  String
+  debit         Float
+  credit        Float
+  balance       Float
+}
+
+model TaxDeadline {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String   // e.g., "Déclaration TVA CA3", "Acompte IS n°1"
+  category    String   // TVA, IS, CFE, URSSAF
+  dueDate     DateTime
+  amount      Float?
+  isCompleted Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model TaxReturn {
+  id        String   @id @default(uuid())
+  companyId String
+  type      String   // CA3, CA12, IS_2065, CFE
+  period    String   // e.g. "2025-Q1" or "2025"
+  data      String   // JSON stringified tax calculation details
+  status    String   @default("DRAFT")
+  createdAt DateTime @default(now())
+}
+
+model VatDeclaration {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period        String   // "2025-01"
+  vatCollected  Float
+  vatDeductible Float
+  vatNetPayable Float
+  status        String   @default("SUBMITTED")
+  createdAt     DateTime @default(now())
+}
+
+model CorporateTax {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear    Int
+  taxableProfit Float
+  taxAmount15   Float    // 15% rate up to 42,500€
+  taxAmount25   Float    // 25% rate above
+  totalTax      Float
+  status        String   @default("CALCULATED")
+  createdAt     DateTime @default(now())
+}
+
+model Payroll {
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  grossSalary   Float
+  netSalary     Float
+  socialCharges Float
+  totalCost     Float
+  createdAt     DateTime  @default(now())
+
+  payslips      Payslip[]
+}
+
+model Payslip {
+  id                   String   @id @default(uuid())
+  payrollId            String
+  payroll              Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  executiveName        String
+  period               String
+  grossSalary          Float
+  netImposable         Float
+  netPayable           Float
+  employerContributions Float
+  employeeContributions Float
+  createdAt            DateTime @default(now())
+}
+
+model SocialContribution {
+  id        String   @id @default(uuid())
+  companyId String
+  organism  String   // URSSAF, Retraite, Prévoyance
+  period    String
+  amount    Float
+  dueDate   DateTime
+  isPaid    Boolean  @default(false)
+}
+
+model Dividend {
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear         Int
+  grossAmount        Float
+  pfuRate            Float    @default(30.0) // Flat Tax 30% (12.8% IR + 17.2% Social)
+  incomeTaxWithheld  Float    // 12.8%
+  socialLevyWithheld Float    // 17.2%
+  netDistributed     Float
+  decisionDate       DateTime
+  paymentDate        DateTime
+  createdAt          DateTime @default(now())
+}
+
+model LegalDocument {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String
+  type        String   // QUOTE, INVOICE, CREDIT_NOTE, STATUTES, AG_MINUTES, TAX_RETURN, OTHER
+  fileUrl     String?
+  content     String?
+  createdAt   DateTime @default(now())
+}
+
+model Contract {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String
+  partyName   String
+  startDate   DateTime
+  endDate     DateTime?
+  monthlyCost Float?
+}
+
+model Asset {
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String
+  category           String
+  acquisitionDate    DateTime
+  acquisitionCost    Float
+  depreciationPeriod Int      // years
+  annualDepreciation Float
+  accumulatedDepr    Float
+  netBookValue       Float
+}
+
+model Loan {
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lender         String
+  initialAmount  Float
+  interestRate   Float
+  startDate      DateTime
+  durationMonths Int
+  monthlyPayment Float
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title     String
+  category  String
+  type      String   // QUOTE, INVOICE, CREDIT_NOTE, STATUTES, AG_MINUTES, TAX_RETURN, OTHER
+  fileUrl   String
+  fileSize  Int
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String
+  permissions Permission[]
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  action String // e.g. "read:invoices", "create:invoices", "export:fec"
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key])
+}
